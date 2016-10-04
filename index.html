@@ -13,7 +13,7 @@
         padding: 6px 12px;
         background-color: #61adf0;
         background-image: -webkit-linear-gradient(#6ab5f2,#53a0ee);
-        background-image: linear-gradient(#6ab5f2,#53a0ee);
+        bacground-image: linear-gradient(#6ab5f2,#53a0ee);
         box-shadow: inset 0 1px 1px #77bdf4,0 2px 2px -1px rgba(0,0,0,0.2);
         text-transform: uppercase;
         border: 1px solid #4d93d7;
@@ -44,6 +44,7 @@
   </head>
   <body class="mixpanel-platform-body" style="overflow-x:scroll;">
       <div id="eventSelect" style="float: left;"></div>
+      <div id="serviceSelect" style="float: left;"></div>
       <div id="dateSelect" style="float: right;"></div>
       <div style="clear: both;"></div>
       <button id="run" value="Run" style="display: none;">Run</button>
@@ -52,8 +53,31 @@
       MP.api.MAX_SIMULTANEOUS_QUERIES = 30
       var datesSelector = $('#dateSelect').MPDatepicker();
       var rootEventSelect = $('#eventSelect').MPEventSelect();
+      
+      // Add custom dropdown for service type
+      var options = {
+        items: [
+          {label: '--', value: null},
+          {label: 'Go-Box', value: 'Go-Box'},
+          {label: 'Go-Busway', value: 'Go-Busway'},
+          {label: 'Go-Car', value: 'Go-Car'},
+          {label: 'Go-Clean', value: 'Go-Clean'},
+          {label: 'Go-Food', value: 'Go-Food'},
+          {label: 'Go-Glam', value: 'Go-Glam'},
+          {label: 'Go-Mart', value: 'Go-Mart'},
+          {label: 'Go-Massage', value: 'Go-Massage'},
+          {label: 'Go-Med', value: 'Go-Med'},
+          {label: 'Go-Ride', value: 'Go-Ride'},
+          {label: 'Go-Send', value: 'Go-Send'},
+          {label: 'Go-Shop', value: 'Go-Shop'},
+          {label: 'Go-Tix', value: 'Go-Tix'},
+        ]
+      };
+      var serviceTypeSelect = $('#serviceSelect').MPSelect(options);
+      
       /* Global Event List */
       var rootEvent;
+      var serviceSelect;
       var objs = {};
       var graphData = {}
       
@@ -153,7 +177,8 @@
       var nodeQuery = function(event_list, node){
         /* Dict with top counts for each event */
         var nodes = {};
-        var promises = []
+        var promises = [];
+        var serviceSelect = serviceTypeSelect.MPSelect('value');
           
         _.each(_.keys(event_list), function(key) {
           var event = event_list[key];
@@ -161,11 +186,21 @@
           var selector_str;
           var events = [];
           while (parent){
-            events.push({'event': event});
+            // Apply service type filter if it exists
+            if(serviceSelect !== null) {
+              events.push({'event': event, 'selector': '(properties["ServiceType"] == "' + serviceSelect + '")'});
+            } else {
+              events.push({'event': event});
+            }
             event = parent.name
             parent = parent.parent
           }
-          events.push({'event': event});
+          // Apply service type filter if it exists
+          if(serviceSelect !== null) {
+            events.push({'event': event, 'selector': '(properties["ServiceType"] == "' + serviceSelect + '")'});
+          } else {
+            events.push({'event': event});
+          }
           events.reverse();
           events.push(params);
           promises.push(MP.api.funnel.apply(MP.api, events));
@@ -216,6 +251,7 @@
       $('#run').on('click', function(e){
         var rootEvent = rootEventSelect.MPEventSelect('value')
         var dates = datesSelector.MPDatepicker('value')
+        var serviceSelect = serviceTypeSelect.MPSelect('value')
         
         params.from = dates.from;
         params.to = dates.to;
@@ -228,12 +264,23 @@
           'root': 100,
         };
         
-        var rootParams = {
-          from: params.from,
-          to: params.to,
-          type: 'unique',
-          interval: 32,
-        };
+        // Apply service type filter if it exists
+        if(serviceSelect !== null && serviceSelect !== undefined) {
+          var rootParams = {
+            from: params.from,
+            to: params.to,
+            type: 'unique',
+            interval: 32,
+            where: '(properties["ServiceType"] == "' + serviceSelect + '")'
+          };
+        } else {
+          var rootParams = {
+            from: params.from,
+            to: params.to,
+            type: 'unique',
+            interval: 32,
+          };
+        }
         
         /* Top Event Queries */
         var topEventsParams = {'limit':'30'};
